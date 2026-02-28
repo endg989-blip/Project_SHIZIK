@@ -1,30 +1,35 @@
-import psycopg2
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup
 from telegram.ext import MessageHandler, filters
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler
+from dotenv import load_dotenv
+import os
+import psycopg2
 
-TOKEN = "8041621118:AAFYlx_-w9F9zlN6Chwb0WPpHeH2qVPXCWk"
 
-def save_note(telegram_id,text):
-    conn = psycopg2.connect(
-        host="localhost",
-        database="telegram_bot",
-        user="postgres",
-        password="08072003"
-    )
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+TOKEN = os.getenv("BOT_TOKEN")
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
+
+def save_note(telegram_id, text):
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO notes (telegram_id,text) VALUES(%s,%s)",
+        "INSERT INTO notes (telegram_id, text) VALUES (%s, %s)",
         (telegram_id, text)
     )
+
     conn.commit()
     cursor.close()
     conn.close()
-
 
 
 def get_menu():
@@ -38,13 +43,7 @@ def get_menu():
 
 
 def save_user(telegram_id, username, first_name):
-    conn = psycopg2.connect(
-        host="localhost",
-        database="telegram_bot",
-        user="postgres",
-        password="08072003"
-    )
-
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
@@ -63,16 +62,10 @@ def save_user(telegram_id, username, first_name):
 
 
 def get_users():
-    conn = psycopg2.connect(
-        host="localhost",
-        database="telegram_bot",
-        user="postgres",
-        password="08072003"
-    )
-
+    conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT telegram_id, username, first_name FROM users")
 
+    cursor.execute("SELECT telegram_id, username, first_name FROM users")
     users = cursor.fetchall()
 
     cursor.close()
@@ -83,12 +76,7 @@ def get_users():
 
 
 def delete_notes_bulk(telegram_id, ids):
-    conn = psycopg2.connect(
-        host="localhost",
-        database="telegram_bot",
-        user="postgres",
-        password="08072003"
-    )
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
@@ -157,22 +145,19 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 def get_notes(telegram_id):
-    conn = psycopg2.connect(
-        host="localhost",
-        database="telegram_bot",
-        user="postgres",
-        password="08072003"
-    )
+    conn = get_conn()
     cursor = conn.cursor()
 
     cursor.execute(
         "SELECT id, text FROM notes WHERE telegram_id = %s ORDER BY id ASC",
         (telegram_id,)
     )
+
     notes = cursor.fetchall()
 
     cursor.close()
     conn.close()
+
     return notes
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -233,33 +218,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Удалено заметок: {deleted} ✅")
         return
 
-    # ===== ПОКАЗАТЬ ЗАМЕТКИ =====
-    
+    # ===== ПОКАЗАТЬ ЗАМЕТОК =====
     if text == "📋 Мои заметки":
         notes = get_notes(user_id)
 
-    if not notes:
-        await update.message.reply_text("Заметок нет")
-    else:
-        for i, (note_id, note_text) in enumerate(notes, start=1):
+        if not notes:
+            await update.message.reply_text("Заметок нет")
+        else:
+            for i, (note_id, note_text) in enumerate(notes, start=1):
+                preview = note_text if len(note_text) <= 60 else note_text[:60] + "…"
 
-            preview = note_text if len(note_text) <= 60 else note_text[:60] + "…"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ Удалить", callback_data=f"confirm_{note_id}")]
+                ])
 
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Удалить", callback_data=f"confirm_{note_id}")]
-            ])
-
-            await update.message.reply_text(
-                f"{i}. {preview}",
-                reply_markup=keyboard
-            )
-
-    return
+                await update.message.reply_text(
+                    f"{i}. {preview}",
+                    reply_markup=keyboard
+                )
+        return
 
     # ===== ФОЛБЭК =====
-    await update.message.reply_text("Я тебя понял, но пока это не команда из меню 🙂")
-
-
+    await update.message.reply_text(
+        "Я тебя понял, но пока это не команда из меню 🙂"
+    )
 
 # ===== INLINE КНОПКИ =====
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
