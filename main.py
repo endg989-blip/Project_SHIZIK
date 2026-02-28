@@ -25,8 +25,7 @@ if not TOKEN:
 
 # -------------------- DB --------------------
 def get_conn():
-    return psycopg2.connect(DATABASE_URL)
-
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 def init_db():
     conn = get_conn()
@@ -264,10 +263,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
     user_id = update.effective_user.id
 
-    # Если нажали пункт меню — сбросить текущие состояния (но не всю память)
-    if text in MENU_BUTTONS:
-        reset_state(context)
-
     # ---------- STATES FIRST ----------
     if context.user_data.get("waiting_category"):
         ok = add_category(user_id, text)
@@ -305,20 +300,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ids_to_delete = [note_map.get(num) for num in numbers if num in note_map]
 
         if not ids_to_delete:
-            await update.message.reply_text("Нет таких номеров. Сначала открой «📋 Мои заметки» (чтобы я составил список).")
+            await update.message.reply_text(
+                "Нет таких номеров. Сначала открой «📋 Мои заметки»."
+            )
             return
 
         deleted = delete_notes_bulk(user_id, ids_to_delete)
         context.user_data["waiting_delete"] = False
-        await update.message.reply_text(f"Удалено заметок: {deleted} ✅", reply_markup=get_menu())
+        await update.message.reply_text(
+            f"Удалено заметок: {deleted} ✅", reply_markup=get_menu()
+        )
         return
 
     # ---------- MENU ACTIONS ----------
     if text == "➕ Новая заметка":
+        reset_state(context)
+
         categories = get_categories(user_id)
         if categories:
-            await update.message.reply_text("Выбери категорию:", reply_markup=categories_keyboard(categories))
-            # waiting_note включаем после выбора категории (в callback)
+            await update.message.reply_text(
+                "Выбери категорию:",
+                reply_markup=categories_keyboard(categories),
+            )
         else:
             context.user_data["waiting_note"] = True
             context.user_data["selected_category"] = None
@@ -326,9 +329,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "📂 Категории":
+        reset_state(context)
+
         categories = get_categories(user_id)
         if not categories:
-            await update.message.reply_text("Категорий пока нет.\nНапиши название новой категории ✍️")
+            await update.message.reply_text(
+                "Категорий пока нет.\nНапиши название новой категории ✍️"
+            )
         else:
             msg = "Твои категории:\n\n"
             for i, (_, name) in enumerate(categories, start=1):
@@ -340,9 +347,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "📋 Мои заметки":
-        notes = get_notes(user_id)
+        reset_state(context)
 
-        # Сформируем note_map (номер в списке -> реальный id)
+        notes = get_notes(user_id)
         context.user_data["note_map"] = {}
 
         if not notes:
@@ -355,15 +362,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             preview = note_text if len(note_text) <= 60 else note_text[:60] + "…"
             category_label = category_name if category_name else "Без категории"
 
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Удалить", callback_data=f"confirm_{note_id}")]
-            ])
+            keyboard = InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "❌ Удалить", callback_data=f"confirm_{note_id}"
+                        )
+                    ]
+                ]
+            )
 
-            await update.message.reply_text(f"{i}. [{category_label}] {preview}", reply_markup=keyboard)
+            await update.message.reply_text(
+                f"{i}. [{category_label}] {preview}", reply_markup=keyboard
+            )
 
         return
 
     if text == "❌ Удалить заметки":
+        reset_state(context)
+
         context.user_data["waiting_delete"] = True
         await update.message.reply_text(
             "Пришли номера заметок для удаления\n"
@@ -373,11 +390,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "🔍 Поиск":
-        await update.message.reply_text("Поиск подключим следующим спринтом 🙂 Пока в бэклоге.")
+        await update.message.reply_text("Поиск подключим следующим спринтом 🙂")
         return
 
     if text == "⏰ Напоминания":
-        await update.message.reply_text("Напоминания подключим следующим спринтом 🙂 Пока в бэклоге.")
+        await update.message.reply_text("Напоминания подключим следующим спринтом 🙂")
         return
 
     await update.message.reply_text("Я тебя понял, но пока это не команда 🙂")
