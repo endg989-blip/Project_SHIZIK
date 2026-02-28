@@ -47,7 +47,7 @@ def init_db():
             first_name TEXT
         );
     """)
-
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notes (
             id SERIAL PRIMARY KEY,
@@ -56,7 +56,10 @@ def init_db():
             category_id INTEGER NULL
         );
     """)
-
+    cursor.execute("""
+        ALTER TABLE notes
+        ADD COLUMN IF NOT EXISTS category_id INTEGER;
+    """)          
     conn.commit()
     cursor.close()
     conn.close()
