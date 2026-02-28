@@ -315,12 +315,13 @@ def main():
 
     app = ApplicationBuilder().token(TOKEN).build()
     
-
+    app.bot.delete_webhook(drop_pending_updates=True)
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("users", users_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     print("Я работаю!)")
+
     app.run_polling()
 
 
