@@ -314,7 +314,7 @@ def main():
     init_db()   # ← ВОТ ЭТА СТРОКА НОВАЯ
 
     app = ApplicationBuilder().token(TOKEN).build()
-    app = ApplicationBuilder().token(TOKEN).build()
+    
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("users", users_command))
