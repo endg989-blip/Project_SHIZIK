@@ -18,6 +18,31 @@ TOKEN = os.getenv("BOT_TOKEN")
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
+def init_db():
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT UNIQUE,
+        username TEXT,
+        first_name TEXT
+    );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS notes (
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT,
+        text TEXT
+    );
+    """)
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def save_note(telegram_id, text):
     conn = get_conn()
     cursor = conn.cursor()
@@ -286,6 +311,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    init_db()   # ← ВОТ ЭТА СТРОКА НОВАЯ
+
+    app = ApplicationBuilder().token(TOKEN).build()
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
